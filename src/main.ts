@@ -31,6 +31,7 @@ import {
   type ActiveCard,
   type GameState,
   type StatDeltas,
+  canPay,
 } from './engine';
 import { ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, formatYear, yearOf } from './data';
 import { WAVES, continueFinale, resolveWave, suits, waveOdds, waveRoutes } from './finale';
@@ -182,6 +183,7 @@ function effectChips(e: Effect | undefined, s: GameState, card: ActiveCard): str
   if (e.threat) out.push(`<span class="chip ${e.threat > 0 ? 'down' : 'up'}">👽 threat ${signed(e.threat)}</span>`);
   if (e.alienRel) out.push(`<span class="chip special">👽 ♥ ${signed(e.alienRel)}</span>`);
   if (e.gov && GOVERNMENTS[e.gov]) out.push(`<span class="chip special">${GOVERNMENTS[e.gov].emoji} ${GOVERNMENTS[e.gov].name}</span>`);
+  if (e.promise) out.push(`<span class="chip special">⏳ ${esc(e.promise.text)} · ${e.promise.turns} turns</span>`);
   if (e.chain) out.push(`<span class="chip special">⏳ consequences</span>`);
   return out;
 }
@@ -221,11 +223,17 @@ function renderStats(s: GameState) {
     .sort((a, b) => b[1] - a[1])
     .map(([k, v]) => `<div class="flag"><span>${flagName(k)}</span><span class="pips">${'●'.repeat(Math.min(v, 6))}<span class="off">${'●'.repeat(Math.max(0, 6 - v))}</span></span></div>`)
     .join('');
+  const pledges = s.promises
+    .map((p) => {
+      const left = p.due - s.turn;
+      return `<div class="flag ${left <= 1 && !canPay(s, p) ? 'neg' : ''}"><span>⏳ ${esc(p.text)} · ${left} turn${left === 1 ? '' : 's'} left</span></div>`;
+    })
+    .join('');
   const ids = s.origins.map((id) => originById(id)).filter(Boolean);
   const identity = ids.length ? `<div class="panel identity"><h3>Who You Are</h3>${ids.map((o) => `<div class="flag"><span>${o!.emoji} ${esc(o!.name)}</span></div>`).join('')}</div>` : '';
   return `
     <div class="panel"><h3>Your People</h3>${rows}</div>
-    <div class="panel"><h3>Things That Are Happening</h3>${flags || '<div class="empty">Nothing weird yet. Give it time.</div>'}</div>
+    <div class="panel"><h3>Things That Are Happening</h3>${pledges}${flags || (pledges ? '' : '<div class="empty">Nothing weird yet. Give it time.</div>')}</div>
     ${identity}`;
 }
 
