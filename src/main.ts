@@ -603,14 +603,16 @@ function renderTitle() {
     <h1 class="sr-only">Ugh to UFO</h1>
     <div class="logo-wrap">${LOGO}</div>
     <div class="tagline">Fifteen ages to get ready. You won't be.</div>
-    <div class="buttons">
+    <div class="title-menu">
       <button class="primary pulse" data-new title="Start a civilization. Try to keep it.">New Run</button>
-      <button class="ghost" data-new data-seed="${dailySeed()}" title="Same world for everyone today">Daily Run</button>
       ${saved ? '<button class="ghost" data-resume>Continue</button>' : ''}
-      <button class="ghost" data-codex>Codex</button>
+      <div class="title-pair">
+        <button class="ghost" data-new data-seed="${dailySeed()}" title="Same world for everyone today">Daily Run</button>
+        <button class="ghost" data-codex>Codex</button>
+      </div>
+      <div class="seed-row"><input id="seed-in" class="seed-input" maxlength="24" placeholder="Have a seed?" aria-label="Seed" /><button class="seed-go" data-new data-seed-input>Play</button></div>
     </div>
-    <div class="seed-row"><input id="seed-in" class="seed-input" maxlength="24" placeholder="Seed" aria-label="Seed" /><button class="ghost" data-new data-seed-input>Play seed</button></div>
-    <div class="badges title-sound">${soundCtl()}</div>
+    <div class="title-corner">${soundCtl()}</div>
     <div class="flavor">${FLAVOR[Math.floor(Math.random() * FLAVOR.length)]}</div>
   </div>${codexOpen ? renderCodex() : ''}`;
 }
