@@ -37,6 +37,7 @@ import {
 } from './engine';
 import { ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, formatYear, yearOf } from './data';
 import { WAVES, continueFinale, resolveWave, suits, waveOdds, waveRoutes } from './finale';
+import { megaById, costText } from './content/megaprojects';
 import { cards, forms, headlines, origins } from './content';
 import { PAPERS, advisorName, councilReport, epithet } from './ui/advisor';
 import { dailySeed, rand, randomSeed, rngState, seedRng, setRngState } from './rng';
@@ -133,6 +134,8 @@ function load(): GameState | null {
       seedRng(s.seed);
       s.rng = rngState();
     }
+    s.mega ??= null;
+    s.wonders ??= [];
     if (!s.trait) s.trait = newTrait();
     return s;
   } catch {
@@ -239,9 +242,15 @@ function renderStats(s: GameState) {
       return `<div class="flag ${left <= 1 && !canPay(s, p) ? 'neg' : ''}"><span>⏳ ${esc(p.text)} · ${left} turn${left === 1 ? '' : 's'} left</span></div>`;
     })
     .join('');
+  const built = s.wonders.map((id) => megaById(id)).filter(Boolean).map((w) => `<div class="flag"><span>${w!.emoji} ${esc(w!.name)}</span></div>`).join('');
   const ids = s.origins.map((id) => originById(id)).filter(Boolean);
-  const identity = ids.length ? `<div class="panel identity"><h3>Who You Are</h3>${ids.map((o) => `<div class="flag"><span>${o!.emoji} ${esc(o!.name)}</span></div>`).join('')}</div>` : '';
+  const identity = ids.length || built ? `<div class="panel identity"><h3>Who You Are</h3>${ids.map((o) => `<div class="flag"><span>${o!.emoji} ${esc(o!.name)}</span></div>`).join('')}${built}</div>` : '';
+  const m = s.mega && megaById(s.mega.id);
+  const wonder = m && s.mega
+    ? `<div class="panel"><h3>Wonder</h3><div class="stat"><span>${m.emoji} ${esc(m.name)}</span><span class="v ${Object.entries(m.cost).every(([k, v]) => s.stats[k as Stat] >= (v ?? 0)) ? '' : 'neg'}">${s.mega.progress}/${m.turns}</span><span class="minibar"><span style="width:${Math.round((s.mega.progress / m.turns) * 100)}%"></span></span></div><div class="flag"><span>Per turn: ${costText(m.cost)}</span></div></div>`
+    : '';
   return `
+    ${wonder}
     <div class="panel"><h3>Your People</h3>${rows}</div>
     <div class="panel"><h3>Things That Are Happening</h3>${pledges}${flags || (pledges ? '' : '<div class="empty">Nothing weird yet. Give it time.</div>')}</div>
     ${identity}`;

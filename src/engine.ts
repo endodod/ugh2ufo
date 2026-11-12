@@ -1,4 +1,5 @@
 import type { CardDef, Check, Choice, CivForm, Cond, Effect, EraRange, Headline, OriginCategory, OriginDef, Outcome, Stat } from './types';
+import { megaById, megaSabotage, costText } from './content/megaprojects';
 import { rand, randomSeed, seedRng } from './rng';
 import { STATS } from './types';
 import { LEADER_TRAITS, ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, yearOf, pick, randomPeopleName, randomRivalEmoji, randomRivalName } from './data';
@@ -107,6 +108,8 @@ export interface GameState {
   lastSeen: Record<string, number>;
   chains: { id: string; turn: number; rival?: number }[];
   promises: Pledge[];
+  mega: { id: string; progress: number } | null;
+  wonders: string[];
   log: { turn: number; text: string }[];
   phase: Phase;
   decisionOptions: ActiveCard[];
@@ -343,6 +346,8 @@ export function newGame(seed?: string): GameState {
     lastSeen: {},
     chains: [],
     promises: [],
+    mega: null,
+    wonders: [],
     log: [],
     phase: 'intro',
     decisionOptions: [],
@@ -399,6 +404,8 @@ function cardEligible(s: GameState, c: CardDef): boolean {
   if (seen !== undefined && s.turn - seen < 6) return false;
   if (c.kind === 'government' && c.choices.every((ch) => ch.effect?.gov === s.gov)) return false;
   if (c.kind === 'rival' && aliveRivals(s).length === 0) return false;
+  const wonder = c.choices[0]?.effect?.mega;
+  if (wonder && (s.mega || s.wonders.includes(wonder))) return false;
   return condOk(s, c.req);
 }
 
@@ -601,6 +608,14 @@ export function applyEffect(s: GameState, e: Effect | undefined, card: ActiveCar
     s.promises.push({ text: p.text, due: s.turn + p.turns, pay: p.pay, kept: p.kept, broken: p.broken, rival: card?.rival });
   }
   if (e.chain) s.chains.push({ id: e.chain.id, turn: s.turn + Math.max(1, e.chain.delay), rival: card?.rival });
+  if (e.mega && !s.mega && !s.wonders.includes(e.mega)) {
+    s.mega = { id: e.mega, progress: 0 };
+    lines.push(`🏗️ Work begins on the ${megaById(e.mega)?.name}.`);
+  }
+  if (e.megaProgress && s.mega) {
+    s.mega.progress = Math.max(0, s.mega.progress + e.megaProgress);
+    lines.push(`🏗️ Work on the ${megaById(s.mega.id)?.name} slips back to ${s.mega.progress}/${megaById(s.mega.id)?.turns}.`);
+  }
   if (e.gov && GOVERNMENTS[e.gov]) {
     s.gov = e.gov;
     lines.push(`${GOVERNMENTS[e.gov].emoji} You are now a ${GOVERNMENTS[e.gov].name}.`);
@@ -1230,9 +1245,52 @@ function upkeep(s: GameState): string[] {
     st.gold += tradeGold;
     lines.push(`🐪 Trade caravans brought ${tradeGold} gold.`);
   }
+  megaUpkeep(s, lines);
   clampStats(s);
   resolvePledges(s, lines);
   return lines;
+}
+
+function megaUpkeep(s: GameState, lines: string[]) {
+  const m = s.mega && megaById(s.mega.id);
+  if (!s.mega || !m) return;
+  const st = s.stats;
+  const afford = Object.entries(m.cost).every(([k, v]) => st[k as Stat] >= (v ?? 0));
+  if (afford) {
+    for (const k in m.cost) st[k as Stat] -= m.cost[k as Stat] ?? 0;
+    s.mega.progress++;
+    lines.push(`🏗️ Work continues on the ${m.name} (${s.mega.progress}/${m.turns}).`);
+  } else {
+    lines.push(`🧱 The ${m.name} sits idle. The crew needs ${costText(m.cost)} and is not getting it.`);
+  }
+  if (s.mega.progress >= m.turns) {
+    applyEffect(s, m.done, null, lines);
+    s.wonders.push(m.id);
+    s.mega = null;
+    addLog(s, `${m.emoji} The ${m.name} was completed.`);
+    lines.push(`🎉 The ${m.name} is complete! ${m.emoji} A committee is already forming to argue about the statue.`);
+    for (const r of s.rivals) {
+      if (!r.alive) continue;
+      if (r.personality === 'pious' || r.personality === 'weird') {
+        r.rel += 6;
+        lines.push(`${r.emoji} ${r.name} is moved by it.`);
+      } else if (r.personality === 'warlike') {
+        r.rel -= 6;
+        lines.push(`${r.emoji} ${r.name} is quietly furious that it is bigger than theirs.`);
+      }
+    }
+    return;
+  }
+  const live = s.rivals.map((r, i) => ({ r, i })).filter((x) => x.r.alive);
+  if (!live.length || rand() >= 0.12) return;
+  const { r, i } = live[Math.floor(rand() * live.length)];
+  const fresh = megaSabotage.filter((id) => !s.used.includes(`ch_f_${id}`) && !s.chains.some((c) => c.id === `ch_f_${id}`));
+  if (fresh.length && rand() < 0.6) {
+    s.chains.push({ id: `ch_f_${fresh[Math.floor(rand() * fresh.length)]}`, turn: s.turn + 1, rival: i });
+  } else {
+    r.rel -= 5;
+    lines.push(`${r.emoji} ${r.name} is openly jealous of the ${m.name}. Relations -5.`);
+  }
 }
 
 export function forecast(s: GameState): Record<'food' | 'gold', number> {
