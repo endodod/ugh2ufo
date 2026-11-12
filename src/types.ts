@@ -86,6 +86,8 @@ export interface Check {
   gov?: Record<string, number>;
   // flat bonus per allied rival / malus per rival at war
   allies?: number;
+  // leader trait modifier that applies to this roll
+  trait?: 'spy' | 'peace';
   success: { text: string; effect: Effect };
   fail: { text: string; effect: Effect };
 }
