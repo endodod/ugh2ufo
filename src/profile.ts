@@ -68,6 +68,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'pacifist', emoji: '🕊️', name: 'Never Struck First', desc: 'Reach the Space Age without declaring war.', test: (s) => s.era >= 11 && !f(s, 'declared_war') },
   { id: 'tribe_space', emoji: '🔥', name: 'Tribe in Space', desc: 'Reach the Space Age as a Tribe.', test: (s) => s.era >= 11 && s.gov === 'tribe' },
   { id: 'triple_allies', emoji: '🤝', name: 'Popular, Somehow', desc: 'Ally with all three neighbours at once.', test: (s) => f(s, 'triple_allies') > 0 },
+  { id: 'wonders', emoji: '🏛️', name: 'Ancient Builders, Modern Invoices', desc: 'Build 2 wonders in a single run.', test: (s) => s.wonders.length >= 2 },
   { id: 'daily_win', emoji: '📅', name: 'Daily Bread', desc: 'Win a daily seed.', test: (s) => s.seed.startsWith('DAILY-') && !!s.ending?.win },
   { id: 'catalogue', emoji: '📚', name: 'Completionist-ish', desc: 'Peak three storylines in a single run.', test: (s) => Object.entries(STORYLINES).filter(([k, v]) => f(s, k) >= v.max).length >= 3 },
 ];

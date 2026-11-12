@@ -1,6 +1,7 @@
 import type { GameState } from './engine';
 import { rand } from './rng';
 import { flag, flagLabel, formById } from './engine';
+import { megaById } from './content/megaprojects';
 
 export interface Route {
   id: string;
@@ -259,6 +260,10 @@ export function waveOdds(s: GameState, route: Route, waveIndex: number): WaveOdd
   for (const [cap, per] of Object.entries(wave.caps)) {
     const lvl = flag(s, cap);
     if (lvl) parts.push({ label: `${flagLabel(cap)} ×${lvl}`, value: lvl * per });
+  }
+  for (const id of s.wonders) {
+    const m = megaById(id);
+    if (m?.finale.waves.includes(wave.id)) parts.push({ label: `${m.emoji} ${m.name}`, value: m.finale.value });
   }
   const alive = s.rivals.filter((r) => r.alive);
   const threatParts: { label: string; value: number }[] = [{ label: '🛸 Alien fleet', value: s.threat * wave.threatFactor }];

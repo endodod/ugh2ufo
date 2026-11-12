@@ -43,6 +43,10 @@ export interface Effect {
   // owe `pay` within `turns` turns: paid automatically (kept) or else broken
   promise?: { text: string; turns: number; pay: Partial<Record<Stat, number>>; kept?: Effect; broken: Effect };
   gov?: string;
+  // starts building a megaproject (id)
+  mega?: string;
+  // shifts progress on the megaproject being built
+  megaProgress?: number;
   // extra flavour line shown after choosing
   text?: string;
 }
