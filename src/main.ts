@@ -36,6 +36,7 @@ import { ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, formatYear, yea
 import { WAVES, continueFinale, resolveWave, suits, waveOdds, waveRoutes } from './finale';
 import { cards, forms, headlines, origins } from './content';
 import { PAPERS, advisorName, councilReport, epithet } from './ui/advisor';
+import { dailySeed, rand, randomSeed, rngState, seedRng, setRngState } from './rng';
 import * as fx from './ui/fx';
 import * as snd from './ui/sound';
 import logoSvg from '../branding/logo.svg?raw';
@@ -99,6 +100,7 @@ function esc(s: string) {
 function save() {
   if (!state) return;
   try {
+    state.rng = rngState();
     localStorage.setItem(SAVE_KEY, JSON.stringify(state, (k, v) => (k === 'def' ? v.id : v)));
   } catch {
     /* storage unavailable */
@@ -114,6 +116,12 @@ function load(): GameState | null {
     const cardsOk = (list: (ActiveCard | null)[]) => list.every((c) => !c || c.def);
     if (!cardsOk([s.current, ...(s.decisionOptions ?? []), ...(s.eventQueue ?? [])])) return null;
     if (s.phase === 'ending' || !('lastChoice' in s)) return null;
+    if (s.seed) setRngState(s.rng);
+    else {
+      s.seed = randomSeed();
+      seedRng(s.seed);
+      s.rng = rngState();
+    }
     if (!s.trait) s.trait = newTrait();
     return s;
   } catch {
@@ -498,9 +506,12 @@ function renderEnding(s: GameState) {
       <div>${STAT_INFO.sci.icon} ${st.sci}</div><div>${STAT_INFO.weird.icon} ${st.weird}</div>
     </div>
     <p class="empty">${esc(s.civ)}, ${esc(epithet(s))}. ${ERAS[s.era].name}.</p>
+    <p class="empty">Seed: ${esc(s.seed)} <button class="ghost seed-copy" data-copy-seed>Copy</button></p>
     <button class="primary" data-new>Try another civilization</button>
   </div></div>`;
 }
+
+const seedLabel = (seed: string) => (seed.startsWith('DAILY-') ? `Daily ${seed.slice(6)}` : esc(seed));
 
 function soundCtl() {
   return `<span class="badge sound-ctl"><button class="snd-btn" data-mute title="Mute / unmute">${snd.isMuted() ? '🔇' : '🔊'}</button><input type="range" class="snd-vol" min="0" max="1" step="0.05" value="${snd.getVolume()}" aria-label="Volume"></span>`;
@@ -515,8 +526,10 @@ function renderTitle() {
     <div class="tagline">Fifteen ages to get ready. You won't be.</div>
     <div class="buttons">
       <button class="primary pulse" data-new title="Start a civilization. Try to keep it.">New Run</button>
+      <button class="ghost" data-new data-seed="${dailySeed()}" title="Same world for everyone today">Daily Run</button>
       ${saved ? '<button class="ghost" data-resume>Continue</button>' : ''}
     </div>
+    <div class="seed-row"><input id="seed-in" class="seed-input" maxlength="24" placeholder="Seed" aria-label="Seed" /><button class="ghost" data-new data-seed-input>Play seed</button></div>
     <div class="badges title-sound">${soundCtl()}</div>
     <div class="flavor">${FLAVOR[Math.floor(Math.random() * FLAVOR.length)]}</div>
   </div>`;
@@ -662,6 +675,7 @@ function render() {
       <div class="civ"><h1>${esc(s.civ)}</h1><div class="sub">${esc(epithet(s))} · ${esc(s.leader)} · <span title="${esc(traitOf(s).desc)}">${traitOf(s).emoji} ${esc(traitOf(s).name)}</span></div></div>
       <div class="badges">
         ${soundCtl()}
+        <button class="badge seed-badge" data-copy-seed title="Copy seed">🌱 ${seedLabel(s.seed)}</button>
         <span class="badge year-badge">📅 ${formatYear(yearOf(s.turn))}</span>
         <span class="badge">${ERAS[s.era].emoji} ${ERAS[s.era].name}</span>
         <span class="badge" title="${esc(gov?.desc ?? '')}">${gov?.emoji ?? ''} ${gov?.name ?? s.gov}</span>
@@ -841,10 +855,15 @@ app.addEventListener('click', (ev) => {
     app.querySelectorAll('.snd-btn').forEach((b) => (b.textContent = snd.isMuted() ? '🔇' : '🔊'));
     return;
   }
+  if (t.hasAttribute('data-copy-seed')) {
+    navigator.clipboard?.writeText(state?.seed ?? '').catch(() => {});
+    return;
+  }
   if (t.hasAttribute('data-new')) {
     act(() => {
       clearSave();
-      state = newGame();
+      const typed = t.hasAttribute('data-seed-input') ? (document.getElementById('seed-in') as HTMLInputElement).value.trim().toUpperCase() : '';
+      state = newGame(t.dataset.seed || typed || undefined);
       prevStats = {};
       prevEra = -1;
       setupPicks = {};
@@ -888,7 +907,7 @@ app.addEventListener('click', (ev) => {
       setupPicks = {};
       for (const cat of ORIGIN_CATEGORIES) {
         const ok = s.offers[cat].filter((id) => !Object.values(setupPicks).some((p) => originById(p!)?.excludes?.includes(id) || originById(id)?.excludes?.includes(p!)));
-        if (ok.length) setupPicks[cat] = ok[Math.floor(Math.random() * ok.length)];
+        if (ok.length) setupPicks[cat] = ok[Math.floor(rand() * ok.length)];
       }
       setupStep = ORIGIN_CATEGORIES.length + 1;
     });

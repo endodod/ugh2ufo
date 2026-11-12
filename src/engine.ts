@@ -1,4 +1,5 @@
 import type { CardDef, Check, Choice, CivForm, Cond, Effect, EraRange, Headline, OriginCategory, OriginDef, Outcome, Stat } from './types';
+import { rand, randomSeed, seedRng } from './rng';
 import { STATS } from './types';
 import { LEADER_TRAITS, ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, yearOf, pick, randomPeopleName, randomRivalEmoji, randomRivalName } from './data';
 
@@ -67,6 +68,8 @@ export interface FinaleState {
 }
 
 export interface GameState {
+  seed: string;
+  rng: number;
   civ: string;
   leader: string;
   trait: string;
@@ -209,7 +212,7 @@ export function registerHeadlines(list: Headline[]) {
 export function rollOffers(s: GameState, only?: OriginCategory) {
   for (const cat of ORIGIN_CATEGORIES) {
     if (only && cat !== only) continue;
-    const pool = [...ORIGINS.values()].filter((o) => o.category === cat).sort(() => Math.random() - 0.5);
+    const pool = [...ORIGINS.values()].filter((o) => o.category === cat).sort(() => rand() - 0.5);
     s.offers[cat] = pool.slice(0, 3).map((o) => o.id);
   }
 }
@@ -273,16 +276,18 @@ export function traitOf(s: GameState) {
   return LEADER_TRAITS.find((x) => x.id === s.trait) ?? LEADER_TRAITS[0];
 }
 
-export function newGame(): GameState {
-  const personalities: Personality[] = (['warlike', 'merchant', 'pious', 'weird'] as Personality[]).sort(() => Math.random() - 0.5);
+export function newGame(seed?: string): GameState {
+  seed = seed ?? randomSeed();
+  seedRng(seed);
+  const personalities: Personality[] = (['warlike', 'merchant', 'pious', 'weird'] as Personality[]).sort(() => rand() - 0.5);
   const rivals: Rival[] = [];
   for (let i = 0; i < 3; i++) {
     rivals.push({
       name: randomRivalName(),
       emoji: randomRivalEmoji(rivals.map((r) => r.emoji)),
       personality: personalities[i],
-      mil: 3 + Math.floor(Math.random() * 3),
-      rel: Math.floor(Math.random() * 21) - 10,
+      mil: 3 + Math.floor(rand() * 3),
+      rel: Math.floor(rand() * 21) - 10,
       ally: false,
       war: false,
       alive: true,
@@ -290,6 +295,8 @@ export function newGame(): GameState {
     });
   }
   const s: GameState = {
+    seed,
+    rng: 0,
     civ: `The ${randomPeopleName()} People`,
     leader: newLeader(0),
     trait: newTrait(),
@@ -381,7 +388,7 @@ function cardWeight(s: GameState, c: CardDef): number {
 function weightedPick<T>(items: T[], weight: (t: T) => number): T | null {
   const total = items.reduce((a, t) => a + weight(t), 0);
   if (total <= 0) return null;
-  let r = Math.random() * total;
+  let r = rand() * total;
   for (const t of items) {
     r -= weight(t);
     if (r <= 0) return t;
@@ -457,7 +464,7 @@ function drawDecisions(s: GameState, kinds?: string[]): ActiveCard[] {
     const remaining = pool.filter((c) => !out.includes(c));
     const fresh = remaining.filter((c) => !out.some((o) => o.kind === c.kind));
     const research = !kinds && i === 0 ? remaining.filter((c) => c.kind === 'research') : [];
-    const from = research.length ? research : fresh.length && Math.random() < 0.9 ? fresh : remaining;
+    const from = research.length ? research : fresh.length && rand() < 0.9 ? fresh : remaining;
     const govFactor = kinds?.includes('government') ? 1.5 : 0.6;
     const p = weightedPick(from, (c) => cardWeight(s, c) * (c.kind === 'government' ? govFactor : 1));
     if (p) out.push(p);
@@ -476,7 +483,7 @@ function drawEvents(s: GameState, count?: number, crisis = false): ActiveCard[] 
   }
   if (s.stats.joy <= 0 && BY_ID.has('revolution')) out.unshift(activate(s, BY_ID.get('revolution')!));
   if (s.stats.food <= 0 && BY_ID.has('famine') && s.lastSeen['famine'] !== s.turn) out.unshift(activate(s, BY_ID.get('famine')!));
-  const base = count ?? (Math.random() < 0.45 ? 2 : 1);
+  const base = count ?? (rand() < 0.45 ? 2 : 1);
   const wanted = Math.max(0, base - Math.min(out.length, 1));
   for (let i = 0; i < wanted; i++) {
     const pool = CARDS.filter((c) => !DECISION_KINDS.has(c.kind) && cardEligible(s, c) && !out.some((o) => o.def.id === c.id));
@@ -616,7 +623,7 @@ export function choose(s: GameState, choiceIndex: number) {
   let roll: ResultInfo['roll'];
   if (choice.check) {
     const { chance, parts } = computeChance(s, choice.check);
-    const r = Math.random();
+    const r = rand();
     const success = r < chance;
     const res = success ? choice.check.success : choice.check.fail;
     roll = { chance, roll: r, success, parts };
@@ -790,14 +797,14 @@ function makeSituation(s: GameState): DipSituation {
       });
   }
   if (alive.length >= 2) {
-    const [a, b] = [...alive].sort(() => Math.random() - 0.5);
+    const [a, b] = [...alive].sort(() => rand() - 0.5);
     list.push({
       emoji: '⚖️', title: 'A Neighbourly Feud', rivals: [a.i, b.i],
       text: `${a.r.name} and ${b.r.name} are fighting over a river, a goat, and who saw the goat first. Both demand you take their side.`,
       choices: [{ action: 'side', rival: a.i, other: b.i }, { action: 'side', rival: b.i, other: a.i }, { action: 'ignore', rival: a.i }],
     });
   }
-  return list[Math.floor(Math.random() * list.length)];
+  return list[Math.floor(rand() * list.length)];
 }
 
 export function dipSituation(s: GameState) {
@@ -814,7 +821,7 @@ export function doDiplomacy(s: GameState, n: number) {
   const card = { rival: i } as ActiveCard;
   const rollCheck = (c: Check) => {
     const { chance, parts } = computeChance(s, c);
-    const x = Math.random();
+    const x = rand();
     roll = { chance, roll: x, success: x < chance, parts };
     return roll.success;
   };
@@ -940,29 +947,29 @@ function upkeep(s: GameState): string[] {
     if (r.personality === 'pious' && st.faith >= 30) r.rel += 1;
     if (r.personality === 'weird' && st.weird >= 30) r.rel += 1;
     if (r.personality === 'merchant' && !r.trade && r.rel > 0) r.rel -= 1;
-    if (!r.war && !r.ally && r.rel <= -60 && Math.random() < 0.35) {
+    if (!r.war && !r.ally && r.rel <= -60 && rand() < 0.35) {
       r.war = true;
       lines.push(`⚔️ ${r.emoji} ${r.name} has had enough of you and declares war!`);
-    } else if (!r.war && r.rel <= -35 && Math.random() < 0.2) {
+    } else if (!r.war && r.rel <= -35 && rand() < 0.2) {
       const stolen = Math.min(st.gold, 3 + s.era);
       st.gold -= stolen;
       st.joy -= 2;
       lines.push(`🗡️ Agents of ${r.name} sabotaged a market. ${stolen} gold went missing.`);
-    } else if (r.ally && Math.random() < 0.15) {
+    } else if (r.ally && rand() < 0.15) {
       const gift = 3 + s.era;
       st.food += gift;
       lines.push(`🎁 Your ally ${r.name} sent ${gift} food, unprompted. Suspicious, but delicious.`);
     }
     if (r.war) {
       const allyHelp = s.rivals.filter((a) => a.alive && a.ally && a !== r).reduce((a, x) => a + x.mil * 0.4, 0);
-      const myPower = (st.mil + allyHelp) * (0.75 + Math.random() * 0.5) * (1 + (traitOf(s).war ?? 0));
-      const theirPower = r.mil * (0.75 + Math.random() * 0.5);
+      const myPower = (st.mil + allyHelp) * (0.75 + rand() * 0.5) * (1 + (traitOf(s).war ?? 0));
+      const theirPower = r.mil * (0.75 + rand() * 0.5);
       if (myPower >= theirPower) {
         const loot = 2 + s.era;
         st.gold += loot;
         r.mil = Math.max(0, r.mil - 2);
         lines.push(`🛡️ You beat back ${r.name}${allyHelp ? ' with help from your allies' : ''}. Loot: ${loot} gold.`);
-        if (myPower > theirPower * 2.2 && Math.random() < 0.3) {
+        if (myPower > theirPower * 2.2 && rand() < 0.3) {
           r.alive = false;
           st.pop += 3;
           lines.push(`🏳️ ${r.name} collapsed entirely. Their people join you.`);
@@ -974,7 +981,7 @@ function upkeep(s: GameState): string[] {
         st.joy -= 3;
         lines.push(`🔥 ${r.name} raided you. Lost ${lost} people.`);
       }
-      if (Math.random() < 0.15) {
+      if (rand() < 0.15) {
         r.war = false;
         r.rel = -20;
         lines.push(`🕊️ Both sides got bored. Peace with ${r.name}.`);
@@ -1064,7 +1071,7 @@ function endTurn(s: GameState) {
     s.phase = 'era';
     return;
   }
-  if (Math.random() < 0.04) {
+  if (rand() < 0.04) {
     const old = s.leader;
     s.leader = newLeader(s.era);
     s.trait = newTrait();

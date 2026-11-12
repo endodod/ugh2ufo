@@ -1,3 +1,4 @@
+import { rand } from './rng';
 import type { Government, Stat } from './types';
 
 export const ERAS = [
@@ -163,17 +164,17 @@ const RIVAL_EMOJI = ['🐗', '🦉', '🐸', '🦂', '🐻', '🦩', '🐌', '�
 const LEADER_TITLES = ['Ugg the Pretty Okay', 'Grunda Big-Arms', 'Old Man Thok', 'Little Rok', 'Mmm the Quiet'];
 
 function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+  return arr[Math.floor(rand() * arr.length)];
 }
 
 export function randomPeopleName(): string {
-  const n = pick(SYL) + pick(SYL) + (Math.random() < 0.5 ? pick(SYL) : '');
+  const n = pick(SYL) + pick(SYL) + (rand() < 0.5 ? pick(SYL) : '');
   return n[0].toUpperCase() + n.slice(1);
 }
 
 export function randomRivalName(): string {
   const people = randomPeopleName();
-  return Math.random() < 0.5 ? `${pick(PREFIX)} ${pick(KIND)} of ${people}` : `The ${people}ians`;
+  return rand() < 0.5 ? `${pick(PREFIX)} ${pick(KIND)} of ${people}` : `The ${people}ians`;
 }
 
 export function randomRivalEmoji(used: string[]): string {
