@@ -17,6 +17,8 @@ export interface Rival {
   trade: boolean;
   foes: number[];
   pacts: number[];
+  // what they will do when the aliens land; set once the fleet is close
+  stance?: 'help' | 'opportunist' | 'neutral' | 'enemy';
 }
 
 export interface ActiveCard {
@@ -704,7 +706,7 @@ function nextEvent(s: GameState) {
 
 // ---------- diplomacy ----------
 
-export type DipAction = 'gift' | 'trade' | 'alliance' | 'spy' | 'insult' | 'war' | 'peace' | 'side' | 'mediate' | 'join' | 'ignore';
+export type DipAction = 'gift' | 'trade' | 'alliance' | 'spy' | 'insult' | 'war' | 'peace' | 'side' | 'mediate' | 'join' | 'persuade' | 'ignore';
 
 export interface DipChoice {
   action: DipAction;
@@ -751,6 +753,17 @@ function spyCheck(s: GameState): Check {
   };
 }
 
+function persuadeCheck(s: GameState, r: Rival): Check {
+  return {
+    base: 0.3 + Math.max(0, r.rel + 20) / 250,
+    trait: 'peace',
+    flags: { diplomats: 0.1 },
+    allies: 0.05,
+    success: { text: '', effect: {} },
+    fail: { text: '', effect: {} },
+  };
+}
+
 function peaceCheck(s: GameState, r: Rival): Check {
   return {
     base: 0.3 + Math.max(0, r.rel + 60) / 300,
@@ -789,6 +802,8 @@ export function dipOption(s: GameState, c: DipChoice): DipOption {
     }
     case 'join':
       return o({ emoji: '🤝', label: 'Join the pact', desc: `${r.name} and ${s.rivals[c.other!].name} +15, their foes -15`, ok: true });
+    case 'persuade':
+      return o({ emoji: '🔮', label: 'Win them over', desc: `-${cost} gold. Success: they will help. Failure: relations -10`, ok: s.stats.gold >= cost, why: `Needs ${cost} gold`, chance: computeChance(s, persuadeCheck(s, r)) });
     case 'ignore':
       return o({ emoji: '🤷', label: 'Stay out of it', desc: 'Nothing changes', ok: true });
   }
@@ -856,6 +871,16 @@ function makeSituation(s: GameState): DipSituation {
         emoji: '🤝', title: 'A Pact Is Formed', rivals: [a, b],
         text: `${s.rivals[a].name} and ${s.rivals[b].name} have signed a pact, a feast and several pieces of paper. They would like you to sign too.`,
         choices: [{ action: 'join', rival: a, other: b }, { action: 'ignore', rival: a, label: 'Decline politely' }],
+      });
+  }
+  const fence = alive.filter(({ r }) => r.stance === 'opportunist' || r.stance === 'neutral');
+  if (agesLeft(s) <= 4 && fence.length) {
+    const { r, i } = fence[Math.floor(rand() * fence.length)];
+    for (let k = 0; k < 3; k++)
+      list.push({
+        emoji: '🔮', title: 'Talk of the End', rivals: [i],
+        text: `${r.name} has been asking what you plan to do when the sky opens. They have also been measuring your walls.`,
+        choices: [{ action: 'persuade', rival: i }, { action: 'ignore', rival: i, label: 'Leave them be' }],
       });
   }
   return list[Math.floor(rand() * list.length)];
@@ -1034,6 +1059,16 @@ export function doDiplomacy(s: GameState, n: number) {
       lines.push(`You sign the pact. ${r.name} and ${o.name} are thrilled; ${foes.size ? 'their enemies are taking notes' : 'nobody else cares yet'}.`);
       break;
     }
+    case 'persuade':
+      s.stats.gold -= giftCost(s);
+      if (rollCheck(persuadeCheck(s, r))) {
+        r.stance = 'help';
+        lines.push(`${r.name} swears to stand with you when the fleet lands. They make you swear back, twice.`);
+      } else {
+        r.rel -= 10;
+        lines.push(`${r.name} takes the gold, nods wisely and promises nothing.`);
+      }
+      break;
     case 'ignore':
       if (sit.title === 'An Offer of Friendship') applyEffect(s, { flags: { dip_snub: 1 }, chain: { id: 'ch_f_dip_snub', delay: 2 } }, card, lines);
       lines.push('You let it pass. The envoys go home and the matter is quietly forgotten.');
@@ -1213,6 +1248,30 @@ export function agesLeft(s: GameState) {
   return ERAS.length - s.era;
 }
 
+const STANCE_LINE = {
+  help: 'say they will stand with you',
+  opportunist: 'say they will side with whoever is winning',
+  neutral: 'say they will stay out of it',
+  enemy: 'say they will join the aliens',
+};
+
+function updateStances(s: GameState): string[] {
+  const lines: string[] = [];
+  for (const r of s.rivals) {
+    if (!r.alive) continue;
+    let st: NonNullable<Rival['stance']>;
+    if (r.ally || r.rel >= 50) st = 'help';
+    else if (r.war || r.rel <= -50) st = 'enemy';
+    else if (r.personality === 'merchant' || r.personality === 'weird') st = rand() < 0.7 ? 'opportunist' : 'neutral';
+    else st = rand() < 0.3 ? 'opportunist' : 'neutral';
+    // a promise you bought stays bought unless they turn on you
+    if (r.stance === 'help' && st !== 'enemy') st = 'help';
+    if (st !== r.stance) lines.push(`🔮 The ${r.name} ${STANCE_LINE[st]}.`);
+    r.stance = st;
+  }
+  return lines;
+}
+
 function endTurn(s: GameState) {
   const yearFrom = yearOf(s.turn);
   const lines = upkeep(s);
@@ -1249,10 +1308,11 @@ function endTurn(s: GameState) {
     s.trait = newTrait();
     s.threat += 6;
     const left = agesLeft(s);
+    const stanceLines = left <= 4 ? updateStances(s) : [];
     s.result = {
       kind: 'era',
       title: `The ${ERAS[s.era].name}`,
-      lines: [`${oldLeader} retires. ${s.leader} takes charge, known as ${traitOf(s).emoji} ${traitOf(s).name}.`, left === 1 ? '🛸 This is the last age. They are almost here.' : `🛸 The fleet arrives in ${left} ages.`, ...lines],
+      lines: [`${oldLeader} retires. ${s.leader} takes charge, known as ${traitOf(s).emoji} ${traitOf(s).name}.`, left === 1 ? '🛸 This is the last age. They are almost here.' : `🛸 The fleet arrives in ${left} ages.`, ...lines, ...stanceLines],
       deltas: eraDeltas,
       grew,
       yearFrom,
