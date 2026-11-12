@@ -1249,10 +1249,10 @@ export function agesLeft(s: GameState) {
 }
 
 const STANCE_LINE = {
-  help: 'say they will stand with you',
-  opportunist: 'say they will side with whoever is winning',
-  neutral: 'say they will stay out of it',
-  enemy: 'say they will join the aliens',
+  help: 'We will stand with you.',
+  opportunist: 'We will side with whoever is winning.',
+  neutral: 'We will stay out of it.',
+  enemy: 'We will join the aliens.',
 };
 
 function updateStances(s: GameState): string[] {
@@ -1266,7 +1266,7 @@ function updateStances(s: GameState): string[] {
     else st = rand() < 0.3 ? 'opportunist' : 'neutral';
     // a promise you bought stays bought unless they turn on you
     if (r.stance === 'help' && st !== 'enemy') st = 'help';
-    if (st !== r.stance) lines.push(`🔮 The ${r.name} ${STANCE_LINE[st]}.`);
+    if (st !== r.stance) lines.push(`🔮 ${r.name}: "${STANCE_LINE[st]}"`);
     r.stance = st;
   }
   return lines;

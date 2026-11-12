@@ -262,14 +262,16 @@ export function waveOdds(s: GameState, route: Route, waveIndex: number): WaveOdd
   }
   const alive = s.rivals.filter((r) => r.alive);
   const threatParts: { label: string; value: number }[] = [{ label: '🛸 Alien fleet', value: s.threat * wave.threatFactor }];
-  const wonBefore = waveIndex > 0 && !!s.finale?.results[waveIndex - 1]?.win;
-  for (const r of alive) {
-    const n = `${r.emoji} ${r.name}`;
-    if (r.stance === 'help' || (r.ally && r.stance)) parts.push({ label: `${n} (${r.ally ? 'ally' : 'keeps its word'})`, value: r.mil * (r.ally ? 0.6 : 0.35) });
-    else if (r.stance === 'enemy') threatParts.push({ label: `${n} joins the aliens`, value: r.mil * 0.5 });
-    else if (r.stance === 'opportunist' && waveIndex > 0) {
-      if (wonBefore) parts.push({ label: `${n} backs the winner (you)`, value: r.mil * 0.35 });
-      else threatParts.push({ label: `${n} backs the winner (aliens)`, value: r.mil * 0.4 });
+  if (wave.id === 'landing') {
+    const wonOrbit = !!s.finale?.results[0]?.win;
+    for (const r of alive) {
+      const n = `${r.emoji} ${r.name}`;
+      if (r.stance === 'help' || (r.ally && r.stance)) parts.push({ label: `${n} (${r.ally ? 'ally' : 'keeps its word'})`, value: r.mil * (r.ally ? 0.6 : 0.35) });
+      else if (r.stance === 'enemy') threatParts.push({ label: `${n} joins the aliens`, value: r.mil * 0.5 });
+      else if (r.stance === 'opportunist') {
+        if (wonOrbit) parts.push({ label: `${n} backs the winner (you)`, value: r.mil * 0.35 });
+        else threatParts.push({ label: `${n} backs the winner (aliens)`, value: r.mil * 0.4 });
+      }
     }
   }
   if (wave.id === 'aftermath' && s.alienRel > 0) parts.push({ label: '👽 Alien goodwill', value: s.alienRel * 1.5 });
