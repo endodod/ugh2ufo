@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Ugh to UFO icon">
+  <title>Ugh to UFO</title>
+  <rect width="512" height="512" rx="112" fill="#14121F"/>
+  <!-- stars -->
+  <g fill="#EDE6D6" fill-opacity="0.5">
+    <circle cx="96" cy="104" r="5"/>
+    <circle cx="420" cy="88" r="4"/>
+    <circle cx="436" cy="300" r="5"/>
+    <circle cx="78" cy="330" r="4"/>
+  </g>
+  <!-- beam -->
+  <path d="M196 230 H316 L380 448 H132 Z" fill="#A78BFA" fill-opacity="0.3"/>
+  <!-- saucer -->
+  <path d="M180 196 A76 76 0 0 1 332 196 Z" fill="#7CF29A" fill-opacity="0.55"/>
+  <ellipse cx="256" cy="206" rx="164" ry="46" fill="#7CF29A"/>
+  <g fill="#14121F">
+    <circle cx="140" cy="214" r="11"/>
+    <circle cx="196" cy="228" r="11"/>
+    <circle cx="256" cy="233" r="11"/>
+    <circle cx="316" cy="228" r="11"/>
+    <circle cx="372" cy="214" r="11"/>
+  </g>
+  <!-- rock being abducted -->
+  <g transform="rotate(-12 256 370)">
+    <path d="M190 392 C180 348 222 314 262 318 C306 322 334 352 326 390 C320 420 200 424 190 392 Z" fill="#FF8A3D"/>
+    <path d="M226 340 C240 330 262 328 276 334" fill="none" stroke="#FFC08F" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

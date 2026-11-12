@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 170" width="720" height="170" role="img" aria-label="Ugh to UFO">
+  <title>Ugh to UFO</title>
+  <g transform="translate(26 34)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- UGH -->
+    <g stroke="#FF8A3D" stroke-width="22">
+      <path d="M0 0 V65 A35 35 0 0 0 70 65 V0"/>
+      <path d="M159 18 A35 35 0 0 0 94 35 V65 A35 35 0 0 0 164 65 V54 H134"/>
+      <path d="M188 0 V100 M258 0 V100 M188 50 H258"/>
+    </g>
+    <!-- to -->
+    <g stroke="#EDE6D6" stroke-opacity="0.7" stroke-width="10">
+      <path d="M296 58 V86 Q296 100 310 100 M286 70 H310"/>
+      <circle cx="337" cy="84" r="16"/>
+    </g>
+    <!-- UF -->
+    <g stroke="#7CF29A" stroke-width="22">
+      <path d="M384 0 V65 A35 35 0 0 0 454 65 V0"/>
+      <path d="M478 100 V0 H540 M478 48 H528"/>
+    </g>
+    <!-- O with a saucer disc -->
+    <path d="M568 35 A35 35 0 0 1 638 35 V65 A35 35 0 0 1 568 65 Z" stroke="#7CF29A" stroke-width="22"/>
+    <ellipse cx="603" cy="58" rx="64" ry="16" fill="#7CF29A"/>
+    <g fill="#14121F">
+      <circle cx="561" cy="59" r="4.5"/>
+      <circle cx="582" cy="63" r="4.5"/>
+      <circle cx="603" cy="65" r="4.5"/>
+      <circle cx="624" cy="63" r="4.5"/>
+      <circle cx="645" cy="59" r="4.5"/>
+    </g>
+  </g>
+</svg>
