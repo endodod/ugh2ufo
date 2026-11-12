@@ -479,7 +479,7 @@ function drawEvents(s: GameState, count?: number, crisis = false): ActiveCard[] 
   s.chains = s.chains.filter((c) => c.turn > s.turn);
   for (const c of due) {
     const def = BY_ID.get(c.id);
-    if (def) out.push(activate(s, def, c.rival));
+    if (def && !(c.id.startsWith('ch_f_dip_') && c.rival !== undefined && !s.rivals[c.rival]?.alive)) out.push(activate(s, def, c.rival));
   }
   if (s.stats.joy <= 0 && BY_ID.has('revolution')) out.unshift(activate(s, BY_ID.get('revolution')!));
   if (s.stats.food <= 0 && BY_ID.has('famine') && s.lastSeen['famine'] !== s.turn) out.unshift(activate(s, BY_ID.get('famine')!));
@@ -829,6 +829,7 @@ export function doDiplomacy(s: GameState, n: number) {
     case 'gift':
       s.stats.gold -= giftCost(s);
       r.rel += giftRel(s, r);
+      if (r.war) applyEffect(s, { chain: { id: 'ch_f_dip_raiders', delay: 3 } }, card, lines);
       lines.push(`${r.emoji} ${r.name} accepts your gifts and pretends they were expecting them.`);
       break;
     case 'trade':
@@ -844,12 +845,14 @@ export function doDiplomacy(s: GameState, n: number) {
         lines.push(`Your spies return from ${r.name} with blueprints, recipes and a very nice hat.`);
       } else {
         r.rel -= 25;
+        applyEffect(s, { flags: { dip_spycaught: 1 }, chain: { id: 'ch_f_dip_spycaught', delay: 3 } }, card, lines);
         lines.push(`Your spy was caught hiding in a vase. ${r.name} has sent the vase back. With the spy.`);
       }
       break;
     case 'insult':
       s.stats.joy += 6 + (traitOf(s).insultJoy ?? 0);
       r.rel -= r.personality === 'warlike' ? 35 : 25;
+      applyEffect(s, { flags: { dip_insult: 1 }, chain: { id: 'ch_f_dip_insult', delay: 2 } }, card, lines);
       lines.push(`The insult is read aloud in every square. It rhymes. ${r.name} is furious.`);
       break;
     case 'war':
@@ -866,10 +869,13 @@ export function doDiplomacy(s: GameState, n: number) {
       const o = s.rivals[other!];
       r.rel += 20;
       o.rel -= 20;
+      applyEffect(s, { flags: { dip_sided: 1 }, chain: { id: 'ch_f_dip_sided', delay: 3 } }, card, lines);
+      s.chains.push({ id: 'ch_f_dip_grudge', turn: s.turn + 4, rival: other });
       lines.push(`You back ${r.name}. They are delighted. ${o.name} keeps the goat out of spite.`);
       break;
     }
     case 'ignore':
+      if (sit.title === 'An Offer of Friendship') applyEffect(s, { flags: { dip_snub: 1 }, chain: { id: 'ch_f_dip_snub', delay: 2 } }, card, lines);
       lines.push('You let it pass. The envoys go home and the matter is quietly forgotten.');
       break;
   }

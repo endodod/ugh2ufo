@@ -42,6 +42,19 @@ Every multi-storyline chain in `chains.ts`, `chains2.ts` and `chains3.ts` has a 
 
 Opt-out flags: `ch_purrbot_off`, `ch_duckpaper_off`, `ch_fungscholar_off`, `ch_loopproph_off`, `ch_cultgenes_off`.
 
+## Diplomacy memory flags
+
+Set in `doDiplomacy` (`engine.ts`); each also schedules a `ch_f_dip_*` follow-up for the rival involved. Follow-ups are skipped if that rival has died.
+
+| Flag | Set when |
+| --- | --- |
+| `dip_snub` | An alliance offer was ignored |
+| `dip_spycaught` | A spy was caught |
+| `dip_insult` | A rival was insulted |
+| `dip_sided` | You backed one side in a Neighbourly Feud (the other side gets `ch_f_dip_grudge`) |
+
+Paying off raiders (gift during war) sets no flag; it schedules `ch_f_dip_raiders`.
+
 ## Ids
 
 - `ch_f_*`: chain-only follow-ups for choices in the older content files (`followups.ts`, `followups_rivals.ts`).
