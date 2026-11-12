@@ -28,6 +28,7 @@ import {
   registerHeadlines,
   registerOrigins,
   rollOffers,
+  setUnlocked,
   startTurn,
   type ActiveCard,
   type GameState,
@@ -41,12 +42,14 @@ import { PAPERS, advisorName, councilReport, epithet } from './ui/advisor';
 import { dailySeed, rand, randomSeed, rngState, seedRng, setRngState } from './rng';
 import * as fx from './ui/fx';
 import * as snd from './ui/sound';
+import { ACHIEVEMENTS, ENDING_TITLES, STORYLINES, achievementById, loadProfile, recordRun, unlockedIds, type Achievement } from './profile';
 import logoSvg from '../branding/logo.svg?raw';
 
 registerCards(cards);
 registerOrigins(origins);
 registerForms(forms);
 registerHeadlines(headlines);
+setUnlocked(unlockedIds());
 
 const SAVE_KEY = 'ugh-to-ufo-save';
 const app = document.getElementById('app')!;
@@ -56,6 +59,8 @@ let prevEra = -1;
 let setupPicks: Partial<Record<OriginCategory, string>> = {};
 let setupStep = 0;
 let busy = false;
+let codexOpen = false;
+let newAch: Achievement[] = [];
 
 const CATEGORY_LABEL: Record<OriginCategory, { title: string; sub: string; icon: string }> = {
   land: { title: 'Where do you start?', sub: 'The land shapes the people. Mostly by being in the way.', icon: '🗺️' },
@@ -515,6 +520,12 @@ function renderBattle(s: GameState) {
 
 function renderEnding(s: GameState) {
   const e = s.ending!;
+  const fresh = recordRun(s);
+  if (fresh.length) {
+    newAch = fresh;
+    setUnlocked(unlockedIds());
+  }
+  const ach = newAch.map((a, i) => `<div class="ach-new" style="--i:${i}"><span class="em">${a.emoji}</span><span><b>${esc(a.name)}</b><br /><span class="empty">${esc(a.desc)}</span></span></div>`).join('');
   const st = s.stats;
   const waves = (s.finale?.results ?? [])
     .map((r, i) => `<div class="wave-row ${r.win ? 'won' : 'lost'}" style="--i:${i}"><span class="em">${WAVES[r.wave].emoji}</span><span><b>${WAVES[r.wave].name}: ${r.emoji} ${esc(r.name)}</b> <span class="verdict-small">${r.win ? 'held' : 'lost'}</span><br /><span class="empty">${esc(r.text)}</span></span></div>`)
@@ -524,6 +535,7 @@ function renderEnding(s: GameState) {
     <h2>${esc(e.title)}</h2>
     <p class="type">${esc(e.text)}</p>
     ${waves ? `<div class="wave-list">${waves}</div>` : ''}
+    ${ach ? `<div class="ach-list"><h3>Achievements unlocked</h3>${ach}</div>` : ''}
     <div class="summary">
       <div>${STAT_INFO.pop.icon} ${st.pop}</div><div>${STAT_INFO.mil.icon} ${st.mil}</div>
       <div>${STAT_INFO.sci.icon} ${st.sci}</div><div>${STAT_INFO.weird.icon} ${st.weird}</div>
@@ -531,6 +543,41 @@ function renderEnding(s: GameState) {
     <p class="empty">${esc(s.civ)}, ${esc(epithet(s))}. ${ERAS[s.era].name}.</p>
     <p class="empty">Seed: ${esc(s.seed)} <button class="ghost seed-copy" data-copy-seed>Copy</button></p>
     <button class="primary" data-new>Try another civilization</button>
+  </div></div>`;
+}
+
+function renderCodex() {
+  const p = loadProfile();
+  const grid = ACHIEVEMENTS.map((a) => {
+    const got = p.achievements[a.id];
+    return `<div class="ach ${got ? 'got' : 'locked'}"><span class="em">${a.emoji}</span><b>${got ? esc(a.name) : '???'}</b>${got ? `<span class="empty">${esc(a.desc)}</span>` : ''}</div>`;
+  }).join('');
+  const runs = p.runs
+    .slice(0, 20)
+    .map((r) => `<tr class="${r.win ? 'won' : 'lost'}"><td>${r.date.slice(0, 10)}</td><td>${esc(r.civ)}</td><td>${r.win ? '🏆' : '🪦'} ${esc(r.title)}</td><td>${ERAS[r.era]?.name ?? r.era}</td><td><button class="ghost seed-copy" data-copy="${esc(r.seed)}" title="Copy seed">${seedLabel(r.seed)}</button></td></tr>`)
+    .join('');
+  const locked = origins.filter((o) => o.unlock && !p.achievements[o.unlock]);
+  const lockedList = locked
+    .map((o) => {
+      const a = achievementById(o.unlock!);
+      return `<li>${esc(o.category)} origin: ${a ? `${a.emoji} ${esc(a.name)}, ${esc(a.desc)}` : '???'}</li>`;
+    })
+    .join('');
+  const badge = (on: boolean, label: string) => `<span class="badge ${on ? '' : 'dim'}">${on ? esc(label) : '???'}</span>`;
+  const seen = ENDING_TITLES.map((t) => badge(p.endings.includes(t), t)).join(' ');
+  const peaks = Object.entries(STORYLINES).map(([k, v]) => badge(p.storylines.includes(k), v.name)).join(' ');
+  return `<div class="codex-back"><div class="codex panel">
+    <button class="ghost codex-close" data-codex-close aria-label="Close">✕</button>
+    <h2>Codex</h2>
+    <h3>Achievements ${Object.keys(p.achievements).length}/${ACHIEVEMENTS.length}</h3>
+    <div class="ach-grid">${grid}</div>
+    <h3>Run history</h3>
+    ${runs ? `<div class="run-wrap"><table class="runs"><tbody>${runs}</tbody></table></div>` : '<p class="empty">No finished runs yet. The history is very short.</p>'}
+    <h3>Endings seen ${p.endings.length}/${ENDING_TITLES.length}</h3>
+    <div class="badges">${seen}</div>
+    <h3>Storylines peaked ${p.storylines.length}/${Object.keys(STORYLINES).length}</h3>
+    <div class="badges">${peaks}</div>
+    ${locked.length ? `<h3>🔒 ${locked.length} origin${locked.length > 1 ? 's' : ''} still locked</h3><ul class="locked-list">${lockedList}</ul>` : ''}
   </div></div>`;
 }
 
@@ -551,11 +598,12 @@ function renderTitle() {
       <button class="primary pulse" data-new title="Start a civilization. Try to keep it.">New Run</button>
       <button class="ghost" data-new data-seed="${dailySeed()}" title="Same world for everyone today">Daily Run</button>
       ${saved ? '<button class="ghost" data-resume>Continue</button>' : ''}
+      <button class="ghost" data-codex>Codex</button>
     </div>
     <div class="seed-row"><input id="seed-in" class="seed-input" maxlength="24" placeholder="Seed" aria-label="Seed" /><button class="ghost" data-new data-seed-input>Play seed</button></div>
     <div class="badges title-sound">${soundCtl()}</div>
     <div class="flavor">${FLAVOR[Math.floor(Math.random() * FLAVOR.length)]}</div>
-  </div>`;
+  </div>${codexOpen ? renderCodex() : ''}`;
 }
 
 function originCard(s: GameState, id: string, cat: OriginCategory, i: number) {
@@ -878,6 +926,15 @@ app.addEventListener('click', (ev) => {
     app.querySelectorAll('.snd-btn').forEach((b) => (b.textContent = snd.isMuted() ? '🔇' : '🔊'));
     return;
   }
+  if (t.hasAttribute('data-codex') || t.hasAttribute('data-codex-close')) {
+    codexOpen = t.hasAttribute('data-codex');
+    render();
+    return;
+  }
+  if (t.dataset.copy) {
+    navigator.clipboard?.writeText(t.dataset.copy).catch(() => {});
+    return;
+  }
   if (t.hasAttribute('data-copy-seed')) {
     navigator.clipboard?.writeText(state?.seed ?? '').catch(() => {});
     return;
@@ -885,6 +942,7 @@ app.addEventListener('click', (ev) => {
   if (t.hasAttribute('data-new')) {
     act(() => {
       clearSave();
+      newAch = [];
       const typed = t.hasAttribute('data-seed-input') ? (document.getElementById('seed-in') as HTMLInputElement).value.trim().toUpperCase() : '';
       state = newGame(t.dataset.seed || typed || undefined);
       prevStats = {};

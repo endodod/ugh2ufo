@@ -66,6 +66,11 @@ const lands: OriginDef[] = [
     desc: 'You can see your enemies coming for nine days. Boredom is the main export.',
     effect: { stats: { food: 3, pop: 2, joy: -3 } }, perTurn: { food: 1 },
   },
+  {
+    id: 'land_crater', category: 'land', name: 'The Crater', emoji: '☄️',
+    desc: 'Something big landed here once. The soil is rich, the view is bowl-shaped, and nobody asks about the glow.',
+    effect: { stats: { food: 4, sci: 2, weird: 2 } }, perTurn: { sci: 1 }, unlock: 'total_victory',
+  },
 ];
 
 const beliefs: OriginDef[] = [
@@ -202,6 +207,11 @@ const customs: OriginDef[] = [
     desc: 'Chairs for giants. Doors for giants. No giants have ever been seen.',
     effect: { stats: { faith: 2, joy: 2, gold: -3 } }, perTurn: { faith: 1, gold: -1 },
   },
+  {
+    id: 'custom_nap', category: 'custom', name: 'The Mandatory Nap', emoji: '😴',
+    desc: 'Every afternoon, by law, everyone lies down. Wars are hard to start from a horizontal position.',
+    effect: { stats: { joy: 4, mil: -2 } }, perTurn: { joy: 1 }, unlock: 'pacifist',
+  },
 ];
 
 const founders: OriginDef[] = [
@@ -269,6 +279,11 @@ const founders: OriginDef[] = [
     id: 'founder_nobody', category: 'founder', name: 'Nobody Remembers', emoji: '❓',
     desc: 'There was a founder. Everyone agrees on that. Everything else is disputed.',
     effect: { stats: { weird: 3, faith: 2, gold: 2 } },
+  },
+  {
+    id: 'founder_cat', category: 'founder', name: 'A Very Confident Cat', emoji: '🐈',
+    desc: 'She did not found anything. She sat in a spot, and the city grew around it out of respect.',
+    effect: { stats: { joy: 3, faith: 2, food: -1 } }, unlock: 'cats_win',
   },
 ];
 
