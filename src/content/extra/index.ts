@@ -8,6 +8,7 @@ import { standaloneCards } from './standalone';
 import { natureCards } from './nature';
 import { societyCards } from './society';
 import { economyCards } from './economy';
+import { promiseCards } from './promises';
 
 export const extraCards: CardDef[] = [
   ...storylineCards,
@@ -19,4 +20,5 @@ export const extraCards: CardDef[] = [
   ...natureCards,
   ...societyCards,
   ...economyCards,
+  ...promiseCards,
 ];

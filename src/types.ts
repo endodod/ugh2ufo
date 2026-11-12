@@ -40,6 +40,8 @@ export interface Effect {
   alienRel?: number;
   // schedules a follow-up event (chainOnly event id) N turns later
   chain?: { id: string; delay: number };
+  // owe `pay` within `turns` turns: paid automatically (kept) or else broken
+  promise?: { text: string; turns: number; pay: Partial<Record<Stat, number>>; kept?: Effect; broken: Effect };
   gov?: string;
   // extra flavour line shown after choosing
   text?: string;

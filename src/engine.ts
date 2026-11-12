@@ -23,6 +23,24 @@ export interface ActiveCard {
   choices: Choice[];
 }
 
+export interface Pledge {
+  text: string;
+  due: number;
+  pay: Partial<Record<Stat, number>>;
+  kept?: Effect;
+  broken: Effect;
+  rival?: number;
+}
+
+export interface Pledge {
+  text: string;
+  due: number;
+  pay: Partial<Record<Stat, number>>;
+  kept?: Effect;
+  broken: Effect;
+  rival?: number;
+}
+
 export type Phase = 'setup' | 'intro' | 'decision' | 'diplomacy' | 'event' | 'result' | 'era' | 'finale' | 'battle' | 'ending';
 
 export type TurnType = 'standard' | 'research' | 'reform' | 'works' | 'crisis' | 'diplomacy' | 'quiet';
@@ -84,6 +102,7 @@ export interface GameState {
   used: string[];
   lastSeen: Record<string, number>;
   chains: { id: string; turn: number; rival?: number }[];
+  promises: Pledge[];
   log: { turn: number; text: string }[];
   phase: Phase;
   decisionOptions: ActiveCard[];
@@ -311,6 +330,7 @@ export function newGame(seed?: string): GameState {
     used: [],
     lastSeen: {},
     chains: [],
+    promises: [],
     log: [],
     phase: 'intro',
     decisionOptions: [],
@@ -560,6 +580,10 @@ export function applyEffect(s: GameState, e: Effect | undefined, card: ActiveCar
         lines.push(`💀 ${r.name} is no more.`);
       }
     }
+  }
+  if (e.promise) {
+    const p = e.promise;
+    s.promises.push({ text: p.text, due: s.turn + p.turns, pay: p.pay, kept: p.kept, broken: p.broken, rival: card?.rival });
   }
   if (e.chain) s.chains.push({ id: e.chain.id, turn: s.turn + Math.max(1, e.chain.delay), rival: card?.rival });
   if (e.gov && GOVERNMENTS[e.gov]) {
@@ -893,6 +917,30 @@ export function tradeIncome(s: GameState, r: Rival) {
 
 // ---------- upkeep ----------
 
+export function canPay(s: GameState, p: Pledge) {
+  return (Object.keys(p.pay) as Stat[]).every((k) => s.stats[k] >= (p.pay[k] ?? 0));
+}
+
+function resolvePledges(s: GameState, lines: string[]) {
+  const open: Pledge[] = [];
+  for (const p of s.promises) {
+    if (p.due > s.turn + 1) {
+      open.push(p);
+      continue;
+    }
+    if (p.rival !== undefined && p.rival >= 0 && !s.rivals[p.rival].alive) continue;
+    const kept = canPay(s, p);
+    if (kept) for (const k in p.pay) s.stats[k as Stat] -= p.pay[k as Stat] ?? 0;
+    const stub = { def: null as never, rival: p.rival ?? -1, choices: [] };
+    const sub: string[] = [];
+    applyEffect(s, kept ? p.kept : p.broken, stub, sub);
+    const head = kept ? `🤝 Promise kept: ${p.text}` : `💥 Promise broken: ${p.text}`;
+    lines.push(head, ...sub);
+    addLog(s, head);
+  }
+  s.promises = open;
+}
+
 function upkeep(s: GameState): string[] {
   const lines: string[] = [];
   const st = s.stats;
@@ -999,6 +1047,7 @@ function upkeep(s: GameState): string[] {
     lines.push(`🐪 Trade caravans brought ${tradeGold} gold.`);
   }
   clampStats(s);
+  resolvePledges(s, lines);
   return lines;
 }
 

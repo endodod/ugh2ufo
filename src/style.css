@@ -303,6 +303,10 @@ h3,
   }
 }
 
+.flag.neg {
+  color: var(--bad);
+}
+
 .flag {
   display: flex;
   justify-content: space-between;
