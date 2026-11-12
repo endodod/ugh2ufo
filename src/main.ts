@@ -35,6 +35,7 @@ import { WAVES, continueFinale, resolveWave, suits, waveOdds, waveRoutes } from 
 import { cards, forms, headlines, origins } from './content';
 import { PAPERS, advisorName, councilReport, epithet } from './ui/advisor';
 import * as fx from './ui/fx';
+import * as snd from './ui/sound';
 import logoSvg from '../branding/logo.svg?raw';
 
 registerCards(cards);
@@ -498,8 +499,13 @@ function renderEnding(s: GameState) {
   </div></div>`;
 }
 
+function soundCtl() {
+  return `<span class="badge sound-ctl"><button class="snd-btn" data-mute title="Mute / unmute">${snd.isMuted() ? '🔇' : '🔊'}</button><input type="range" class="snd-vol" min="0" max="1" step="0.05" value="${snd.getVolume()}" aria-label="Volume"></span>`;
+}
+
 function renderTitle() {
   const saved = load();
+  snd.setAmbientAge(-1);
   app.innerHTML = `<div class="title-screen">
     <h1 class="sr-only">Ugh to UFO</h1>
     <div class="logo-wrap">${LOGO}</div>
@@ -508,6 +514,7 @@ function renderTitle() {
       <button class="primary pulse" data-new title="Start a civilization. Try to keep it.">New Run</button>
       ${saved ? '<button class="ghost" data-resume>Continue</button>' : ''}
     </div>
+    <div class="badges title-sound">${soundCtl()}</div>
     <div class="flavor">${FLAVOR[Math.floor(Math.random() * FLAVOR.length)]}</div>
   </div>`;
 }
@@ -626,6 +633,7 @@ function render() {
   const s = state;
   document.documentElement.dataset.era = `${s.era}`;
   fx.setAmbientEra(s.era);
+  snd.setAmbientAge(s.era);
   if (s.phase === 'setup') {
     app.innerHTML = `<div class="app">${renderSetup(s)}</div>`;
     save();
@@ -650,6 +658,7 @@ function render() {
     <div class="topbar">
       <div class="civ"><h1>${esc(s.civ)}</h1><div class="sub">${esc(epithet(s))} · ${esc(s.leader)}</div></div>
       <div class="badges">
+        ${soundCtl()}
         <span class="badge year-badge">📅 ${formatYear(yearOf(s.turn))}</span>
         <span class="badge">${ERAS[s.era].emoji} ${ERAS[s.era].name}</span>
         <span class="badge" title="${esc(gov?.desc ?? '')}">${gov?.emoji ?? ''} ${gov?.name ?? s.gov}</span>
@@ -667,6 +676,7 @@ function render() {
   save();
 }
 
+let prevKey = '';
 function afterRender() {
   const s = state;
   if (!s) return;
@@ -688,6 +698,13 @@ function afterRender() {
     fx.burstAt(app.querySelector('.era-emoji'), [ERAS[s.era].emoji, '✨', '⭐'], 30, 12);
   }
   prevEra = s.era;
+  const key = `${s.phase}:${s.turn}:${s.era}:${s.result?.kind ?? ''}`;
+  if (key !== prevKey) {
+    prevKey = key;
+    if (s.phase === 'finale' || s.phase === 'battle') snd.sfx('alien');
+    else if (s.result?.kind === 'era') snd.sfx('era');
+    else if (s.phase === 'event' || s.phase === 'decision') snd.sfx('card');
+  }
 
   const year = app.querySelector('.passage .year') as HTMLElement | null;
   if (year) {
@@ -762,7 +779,9 @@ function rollDice(box: HTMLElement) {
   const got = Number(box.dataset.got);
   const success = box.dataset.success === '1';
   const gamble = box.classList.contains('gamble');
+  snd.sfx('dice');
   const finish = () => {
+    snd.sfx(gamble || success ? 'success' : 'fail');
     if (!gamble) num.textContent = `${got}`;
     else num.textContent = '!';
     box.classList.add('landed');
@@ -814,6 +833,11 @@ app.addEventListener('click', (ev) => {
   const t = (ev.target as HTMLElement).closest('button') as HTMLButtonElement | null;
   if (!t || t.disabled) return;
   fx.ripple(t, ev);
+  if (t.hasAttribute('data-mute')) {
+    snd.setMuted(!snd.isMuted());
+    app.querySelectorAll('.snd-btn').forEach((b) => (b.textContent = snd.isMuted() ? '🔇' : '🔊'));
+    return;
+  }
   if (t.hasAttribute('data-new')) {
     act(() => {
       clearSave();
@@ -893,6 +917,11 @@ app.addEventListener('click', (ev) => {
 
 app.addEventListener('input', (ev) => {
   const t = ev.target as HTMLInputElement;
+  if (t.classList.contains('snd-vol')) {
+    snd.setVolume(Number(t.value));
+    app.querySelectorAll('.snd-btn').forEach((b) => (b.textContent = snd.isMuted() ? '🔇' : '🔊'));
+    return;
+  }
   if (t.id === 'civ-name' && state) {
     state.civ = t.value.trim() || state.civ;
     save();

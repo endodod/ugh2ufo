@@ -2110,3 +2110,28 @@ h3,
 .decisions .decision .choice .chips {
   align-content: flex-start;
 }
+
+.sound-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+}
+
+.snd-btn {
+  background: none;
+  border: 0;
+  padding: 2px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.snd-vol {
+  width: 70px;
+  accent-color: var(--accent);
+}
+
+.title-sound {
+  justify-content: center;
+  margin-top: 16px;
+}
