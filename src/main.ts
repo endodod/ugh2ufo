@@ -114,6 +114,10 @@ function load(): GameState | null {
     if (!raw) return null;
     const byId = new Map(allCards().map((c) => [c.id, c]));
     const s = JSON.parse(raw, (k, v) => (k === 'def' ? byId.get(v) : v)) as GameState;
+    for (const r of s.rivals) {
+      r.foes ??= [];
+      r.pacts ??= [];
+    }
     const cardsOk = (list: (ActiveCard | null)[]) => list.every((c) => !c || c.def);
     if (!cardsOk([s.current, ...(s.decisionOptions ?? []), ...(s.eventQueue ?? [])])) return null;
     if (s.phase === 'ending' || !('lastChoice' in s)) return null;
@@ -249,7 +253,7 @@ function renderWorld(s: GameState) {
       const bar = r.rel >= 0 ? `left:50%;width:${w}%;` : `right:50%;width:${w}%;`;
       const tags = !r.alive
         ? '<span class="tag dead">gone</span>'
-        : `${r.war ? '<span class="tag war">at war</span>' : ''}${r.ally ? '<span class="tag ally">🛡️ ally</span>' : ''}${r.trade ? `<span class="tag trade">🐪 +${tradeIncome(s, r)}/turn</span>` : ''}${!r.ally && r.rel >= 50 ? '<span class="tag ally">would help</span>' : ''}${!r.ally && (r.rel <= -50 || r.war) ? '<span class="tag war">may join aliens</span>' : ''}`;
+        : `${r.war ? '<span class="tag war">at war</span>' : ''}${r.ally ? '<span class="tag ally">🛡️ ally</span>' : ''}${r.foes.map((n) => `<span class="tag war">⚔️ vs ${s.rivals[n].name}</span>`).join('')}${r.pacts.map((n) => `<span class="tag ally">🤝 ${s.rivals[n].name}</span>`).join('')}${r.trade ? `<span class="tag trade">🐪 +${tradeIncome(s, r)}/turn</span>` : ''}${!r.ally && r.rel >= 50 ? '<span class="tag ally">would help</span>' : ''}${!r.ally && (r.rel <= -50 || r.war) ? '<span class="tag war">may join aliens</span>' : ''}`;
       return `<div class="rival ${r.war ? 'at-war' : ''} ${r.alive ? '' : 'gone'}">
         <div class="name"><span class="remoji">${r.emoji}</span> ${esc(r.name)}</div>
         <div class="meta"><span>${personalityLabel(r.personality)}</span><span>⚔️ ${r.mil}</span>${tags}</div>

@@ -15,6 +15,8 @@ export interface Rival {
   war: boolean;
   alive: boolean;
   trade: boolean;
+  foes: number[];
+  pacts: number[];
 }
 
 export interface ActiveCard {
@@ -311,6 +313,8 @@ export function newGame(seed?: string): GameState {
       war: false,
       alive: true,
       trade: false,
+      foes: [],
+      pacts: [],
     });
   }
   const s: GameState = {
@@ -700,7 +704,7 @@ function nextEvent(s: GameState) {
 
 // ---------- diplomacy ----------
 
-export type DipAction = 'gift' | 'trade' | 'alliance' | 'spy' | 'insult' | 'war' | 'peace' | 'side' | 'ignore';
+export type DipAction = 'gift' | 'trade' | 'alliance' | 'spy' | 'insult' | 'war' | 'peace' | 'side' | 'mediate' | 'join' | 'ignore';
 
 export interface DipChoice {
   action: DipAction;
@@ -779,6 +783,12 @@ export function dipOption(s: GameState, c: DipChoice): DipOption {
       return o({ emoji: '🕊️', label: 'Offer peace', desc: 'End the war', ok: true, chance: computeChance(s, peaceCheck(s, r)) });
     case 'side':
       return o({ emoji: r.emoji, label: `Back ${r.name}`, desc: `${r.name} +20, ${s.rivals[c.other!].name} -20`, ok: true });
+    case 'mediate': {
+      const o2 = s.rivals[c.other!];
+      return o({ emoji: '🕊️', label: 'Offer to mediate', desc: 'Success: their war ends, both +10. Failure: both -10', ok: true, chance: computeChance(s, peaceCheck(s, { ...r, rel: (r.rel + o2.rel) / 2 })) });
+    }
+    case 'join':
+      return o({ emoji: '🤝', label: 'Join the pact', desc: `${r.name} and ${s.rivals[c.other!].name} +15, their foes -15`, ok: true });
     case 'ignore':
       return o({ emoji: '🤷', label: 'Stay out of it', desc: 'Nothing changes', ok: true });
   }
@@ -828,8 +838,109 @@ function makeSituation(s: GameState): DipSituation {
       choices: [{ action: 'side', rival: a.i, other: b.i }, { action: 'side', rival: b.i, other: a.i }, { action: 'ignore', rival: a.i }],
     });
   }
+  const wars = pairs(s, 'foes');
+  if (wars.length) {
+    const [a, b] = wars[Math.floor(rand() * wars.length)];
+    for (let k = 0; k < 3; k++)
+      list.push({
+        emoji: '🔥', title: 'Two Neighbours at War', rivals: [a, b],
+        text: `${s.rivals[a].name} and ${s.rivals[b].name} are at each other's throats. Both envoys are in your hall, shouting in turn, then at once.`,
+        choices: [{ action: 'side', rival: a, other: b }, { action: 'side', rival: b, other: a }, { action: 'mediate', rival: a, other: b }, { action: 'ignore', rival: a, label: 'Stay out of it' }],
+      });
+  }
+  const pacts = pairs(s, 'pacts');
+  if (pacts.length) {
+    const [a, b] = pacts[Math.floor(rand() * pacts.length)];
+    for (let k = 0; k < 3; k++)
+      list.push({
+        emoji: '🤝', title: 'A Pact Is Formed', rivals: [a, b],
+        text: `${s.rivals[a].name} and ${s.rivals[b].name} have signed a pact, a feast and several pieces of paper. They would like you to sign too.`,
+        choices: [{ action: 'join', rival: a, other: b }, { action: 'ignore', rival: a, label: 'Decline politely' }],
+      });
+  }
   return list[Math.floor(rand() * list.length)];
 }
+
+// each living pair once, a < b
+function pairs(s: GameState, k: 'foes' | 'pacts'): [number, number][] {
+  const out: [number, number][] = [];
+  s.rivals.forEach((r, i) => {
+    if (r.alive) for (const j of r[k]) if (j > i && s.rivals[j].alive) out.push([i, j]);
+  });
+  return out;
+}
+
+function link(s: GameState, k: 'foes' | 'pacts', a: number, b: number, on: boolean) {
+  for (const [x, y] of [[a, b], [b, a]]) {
+    const l = s.rivals[x][k].filter((n) => n !== y);
+    if (on) l.push(y);
+    s.rivals[x][k] = l;
+  }
+}
+
+// off-screen neighbour politics
+function neighbourMove(s: GameState, lines: string[]) {
+  if (rand() >= 0.15) return;
+  const alive = aliveRivals(s);
+  if (alive.length < 2) return;
+  const pick = <T>(xs: { w: number; v: T }[]): T => {
+    let n = rand() * xs.reduce((a, x) => a + x.w, 0);
+    for (const x of xs) if ((n -= x.w) < 0) return x.v;
+    return xs[xs.length - 1].v;
+  };
+  const say = (t: string) => {
+    lines.push(t);
+    addLog(s, t);
+  };
+  const ps = alive.flatMap(({ i: a }) => alive.filter(({ i: b }) => b > a).map(({ i: b }) => [a, b] as [number, number]));
+  const fighting = ps.filter(([a, b]) => s.rivals[a].foes.includes(b));
+  const wWar = (p: Personality) => (p === 'warlike' ? 4 : p === 'weird' ? 2 : 1);
+  const wPact = (p: Personality) => (p === 'merchant' || p === 'pious' ? 4 : 1);
+  const kind = pick([
+    { w: 3, v: 'war' },
+    { w: 3, v: 'pact' },
+    { w: fighting.length ? 4 : 0, v: 'fight' },
+  ]);
+  if (kind === 'war') {
+    const opts = alive.flatMap(({ i: a }) =>
+      alive.filter(({ i: b }) => b !== a && !s.rivals[a].pacts.includes(b) && !s.rivals[a].foes.includes(b)).map(({ i: b }) => ({ w: wWar(s.rivals[a].personality), v: [a, b] })),
+    );
+    if (!opts.length) return;
+    const [a, b] = pick(opts);
+    const [x, y] = [s.rivals[a], s.rivals[b]];
+    link(s, 'foes', a, b, true);
+    say(`⚔️ ${x.emoji} ${x.name} declared war on ${y.emoji} ${y.name} over a misunderstanding. Both sides are sure it was the other's.`);
+  } else if (kind === 'pact') {
+    const opts = ps
+      .filter(([a, b]) => !s.rivals[a].foes.includes(b) && !s.rivals[a].pacts.includes(b))
+      .map(([a, b]) => ({ w: wPact(s.rivals[a].personality) + wPact(s.rivals[b].personality), v: [a, b] }));
+    if (!opts.length) return;
+    const [a, b] = pick(opts);
+    link(s, 'pacts', a, b, true);
+    say(`🤝 ${s.rivals[a].emoji} ${s.rivals[a].name} and ${s.rivals[b].emoji} ${s.rivals[b].name} signed a pact. Nobody has read it.`);
+  } else {
+    const [a, b] = fighting[Math.floor(rand() * fighting.length)];
+    const [x, y] = [s.rivals[a], s.rivals[b]];
+    x.mil = Math.max(1, x.mil - Math.ceil(x.mil * 0.15));
+    y.mil = Math.max(1, y.mil - Math.ceil(y.mil * 0.15));
+    const [w, l, li] = x.mil >= y.mil ? [x, y, b] : [y, x, a];
+    if (w.mil >= l.mil * 2 && rand() < 0.4) {
+      l.alive = false;
+      w.mil += Math.ceil(l.mil / 2);
+      for (const r of s.rivals) {
+        r.foes = r.foes.filter((n) => n !== li);
+        r.pacts = r.pacts.filter((n) => n !== li);
+      }
+      l.foes = [];
+      l.pacts = [];
+      say(`💀 ${w.emoji} ${w.name} conquered ${l.emoji} ${l.name}. The map has been redrawn, mostly in ${w.name}'s favourite colour.`);
+    } else if (rand() < 0.25) {
+      link(s, 'foes', a, b, false);
+      say(`🕊️ ${x.name} and ${y.name} made peace. Both lost a chunk of army and most of their patience.`);
+    } else say(`⚔️ ${x.name} and ${y.name} fought another battle. Both armies are smaller and both generals are loud.`);
+  }
+}
+
 
 export function dipSituation(s: GameState) {
   return (s.dipSituation ??= makeSituation(s));
@@ -896,6 +1007,31 @@ export function doDiplomacy(s: GameState, n: number) {
       applyEffect(s, { flags: { dip_sided: 1 }, chain: { id: 'ch_f_dip_sided', delay: 3 } }, card, lines);
       s.chains.push({ id: 'ch_f_dip_grudge', turn: s.turn + 4, rival: other });
       lines.push(`You back ${r.name}. They are delighted. ${o.name} keeps the goat out of spite.`);
+      break;
+    }
+    case 'mediate': {
+      const o = s.rivals[other!];
+      if (rollCheck(peaceCheck(s, { ...r, rel: (r.rel + o.rel) / 2 }))) {
+        link(s, 'foes', i, other!, false);
+        r.rel += 10;
+        o.rel += 10;
+        lines.push(`${r.name} and ${o.name} shake hands, glare at you, and agree on one thing: the war was your idea.`);
+      } else {
+        r.rel -= 10;
+        o.rel -= 10;
+        lines.push(`Your mediation lasts four minutes. ${r.name} and ${o.name} leave insulted, in different directions.`);
+      }
+      break;
+    }
+    case 'join': {
+      const o = s.rivals[other!];
+      r.rel += 15;
+      o.rel += 15;
+      const foes = new Set([...r.foes, ...o.foes]);
+      foes.delete(i);
+      foes.delete(other!);
+      for (const f of foes) if (s.rivals[f].alive) s.rivals[f].rel -= 15;
+      lines.push(`You sign the pact. ${r.name} and ${o.name} are thrilled; ${foes.size ? 'their enemies are taking notes' : 'nobody else cares yet'}.`);
       break;
     }
     case 'ignore':
@@ -1042,6 +1178,7 @@ function upkeep(s: GameState): string[] {
       }
     }
   }
+  neighbourMove(s, lines);
   if (tradeGold) {
     st.gold += tradeGold;
     lines.push(`🐪 Trade caravans brought ${tradeGold} gold.`);
