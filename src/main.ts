@@ -9,6 +9,7 @@ import {
   dipSituation,
   doDiplomacy,
   tradeIncome,
+  type Rival,
   TURN_INFO,
   allCards,
   choose,
@@ -245,6 +246,16 @@ function personalityLabel(p: string) {
   return { warlike: '🗡️ warlike', merchant: '🪙 merchants', pious: '🕯️ pious', weird: '🌀 weird' }[p] ?? p;
 }
 
+function stanceTag(r: Rival) {
+  switch (r.stance) {
+    case 'help': return '<span class="tag ally">🔮 will help</span>';
+    case 'opportunist': return '<span class="tag trade">🔮 waits to see who wins</span>';
+    case 'neutral': return '<span class="tag">🔮 staying out</span>';
+    case 'enemy': return '<span class="tag war">🔮 will join the aliens</span>';
+  }
+  return '';
+}
+
 function renderWorld(s: GameState) {
   const rivals = s.rivals
     .map((r) => {
@@ -253,7 +264,7 @@ function renderWorld(s: GameState) {
       const bar = r.rel >= 0 ? `left:50%;width:${w}%;` : `right:50%;width:${w}%;`;
       const tags = !r.alive
         ? '<span class="tag dead">gone</span>'
-        : `${r.war ? '<span class="tag war">at war</span>' : ''}${r.ally ? '<span class="tag ally">🛡️ ally</span>' : ''}${r.foes.map((n) => `<span class="tag war">⚔️ vs ${s.rivals[n].name}</span>`).join('')}${r.pacts.map((n) => `<span class="tag ally">🤝 ${s.rivals[n].name}</span>`).join('')}${r.trade ? `<span class="tag trade">🐪 +${tradeIncome(s, r)}/turn</span>` : ''}${!r.ally && r.rel >= 50 ? '<span class="tag ally">would help</span>' : ''}${!r.ally && (r.rel <= -50 || r.war) ? '<span class="tag war">may join aliens</span>' : ''}`;
+        : `${r.war ? '<span class="tag war">at war</span>' : ''}${r.ally ? '<span class="tag ally">🛡️ ally</span>' : ''}${r.foes.map((n) => `<span class="tag war">⚔️ vs ${s.rivals[n].name}</span>`).join('')}${r.pacts.map((n) => `<span class="tag ally">🤝 ${s.rivals[n].name}</span>`).join('')}${r.trade ? `<span class="tag trade">🐪 +${tradeIncome(s, r)}/turn</span>` : ''}${stanceTag(r)}`;
       return `<div class="rival ${r.war ? 'at-war' : ''} ${r.alive ? '' : 'gone'}">
         <div class="name"><span class="remoji">${r.emoji}</span> ${esc(r.name)}</div>
         <div class="meta"><span>${personalityLabel(r.personality)}</span><span>⚔️ ${r.mil}</span>${tags}</div>
