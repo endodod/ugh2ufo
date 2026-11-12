@@ -150,6 +150,8 @@ export interface OriginDef {
   perTurn?: Partial<Record<Stat, number>>;
   // origins that cannot be combined with this one
   excludes?: string[];
+  // achievement id that must be earned before this origin is offered
+  unlock?: string;
 }
 
 // Short flavour line shown on the time-passing screen between turns.

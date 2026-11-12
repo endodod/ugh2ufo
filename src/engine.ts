@@ -124,6 +124,7 @@ export interface GameState {
   turnType: TurnType;
   finale: FinaleState | null;
   dipSituation?: DipSituation | null;
+  recorded?: boolean;
 }
 
 // ---------- registries ----------
@@ -133,6 +134,11 @@ const BY_ID = new Map<string, CardDef>();
 const ORIGINS = new Map<string, OriginDef>();
 const FORMS = new Map<string, CivForm>();
 const HEADLINES: Headline[] = [];
+let UNLOCKED = new Set<string>();
+
+export const setUnlocked = (ids: Iterable<string>) => {
+  UNLOCKED = new Set(ids);
+};
 
 const STAT_LABEL = Object.fromEntries(Object.entries(STAT_INFO).map(([k, v]) => [k, `${v.icon} ${v.name}`])) as Record<Stat, string>;
 
@@ -235,7 +241,7 @@ export function registerHeadlines(list: Headline[]) {
 export function rollOffers(s: GameState, only?: OriginCategory) {
   for (const cat of ORIGIN_CATEGORIES) {
     if (only && cat !== only) continue;
-    const pool = [...ORIGINS.values()].filter((o) => o.category === cat).sort(() => rand() - 0.5);
+    const pool = [...ORIGINS.values()].filter((o) => o.category === cat && (!o.unlock || UNLOCKED.has(o.unlock))).sort(() => rand() - 0.5);
     s.offers[cat] = pool.slice(0, 3).map((o) => o.id);
   }
 }
@@ -574,7 +580,10 @@ export function applyEffect(s: GameState, e: Effect | undefined, card: ActiveCar
       }
       if (e.rival.war !== undefined) {
         r.war = e.rival.war;
-        if (r.war) r.ally = false;
+        if (r.war) {
+          r.ally = false;
+          s.flags.declared_war = 1;
+        }
         lines.push(r.war ? `⚔️ War with ${r.name}!` : `🕊️ Peace with ${r.name}.`);
       }
       if (e.rival.trade !== undefined && r.trade !== e.rival.trade) {
@@ -1154,6 +1163,9 @@ function upkeep(s: GameState): string[] {
   else if (st.joy < 45) st.joy += 2;
 
   s.threat += 2 + Math.floor(s.era * 0.78);
+
+  const living = s.rivals.filter((r) => r.alive);
+  if (living.length === 3 && living.every((r) => r.ally)) s.flags.triple_allies = 1;
 
   let tradeGold = 0;
   for (const r of s.rivals) {
