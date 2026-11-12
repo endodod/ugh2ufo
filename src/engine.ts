@@ -1,6 +1,6 @@
 import type { CardDef, Check, Choice, CivForm, Cond, Effect, EraRange, Headline, OriginCategory, OriginDef, Outcome, Stat } from './types';
 import { STATS } from './types';
-import { ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, yearOf, pick, randomPeopleName, randomRivalEmoji, randomRivalName } from './data';
+import { LEADER_TRAITS, ERAS, FLAG_INFO, GOVERNMENTS, STAT_INFO, TURNS_PER_ERA, yearOf, pick, randomPeopleName, randomRivalEmoji, randomRivalName } from './data';
 
 export type Personality = 'warlike' | 'merchant' | 'pious' | 'weird';
 
@@ -69,6 +69,7 @@ export interface FinaleState {
 export interface GameState {
   civ: string;
   leader: string;
+  trait: string;
   turn: number;
   era: number;
   stats: Record<Stat, number>;
@@ -255,6 +256,23 @@ export function newLeader(era: number) {
   return `${LEADER_TITLE[Math.min(era, LEADER_TITLE.length - 1)]} ${pick(LEADER_FIRST)} ${pick(LEADER_EPITHET)}`;
 }
 
+const LEADER_EXITS = [
+  '{old} tripped over the ceremonial robe and did not get up.',
+  '{old} lost an argument with a goat, officially a hunting accident.',
+  '{old} was replaced after a vote nobody remembers holding.',
+  '{old} went out for bread and never came back.',
+  '{old} was overthrown by a coalition of the bored.',
+  '{old} died of natural causes, which came as a surprise to everyone.',
+]
+
+export function newTrait() {
+  return pick(LEADER_TRAITS).id;
+}
+
+export function traitOf(s: GameState) {
+  return LEADER_TRAITS.find((x) => x.id === s.trait) ?? LEADER_TRAITS[0];
+}
+
 export function newGame(): GameState {
   const personalities: Personality[] = (['warlike', 'merchant', 'pious', 'weird'] as Personality[]).sort(() => Math.random() - 0.5);
   const rivals: Rival[] = [];
@@ -274,6 +292,7 @@ export function newGame(): GameState {
   const s: GameState = {
     civ: `The ${randomPeopleName()} People`,
     leader: newLeader(0),
+    trait: newTrait(),
     turn: 0,
     era: 0,
     stats: { pop: 10, food: 10, gold: 5, mil: 3, sci: 0, faith: 0, joy: 50, weird: 0 },
@@ -563,6 +582,11 @@ export function computeChance(s: GameState, c: Check): { chance: number; parts: 
     if (allies) parts.push({ label: 'Allies', value: c.allies * allies });
     if (wars) parts.push({ label: 'Wars', value: -c.allies * wars });
   }
+  if (c.trait) {
+    const tr = traitOf(s);
+    const v = tr[c.trait] ?? 0;
+    if (v) parts.push({ label: `${tr.emoji} ${tr.name}`, value: v });
+  }
   const raw = parts.reduce((a, p) => a + p.value, 0);
   return { chance: Math.max(0.05, Math.min(0.95, raw)), parts };
 }
@@ -673,6 +697,10 @@ export interface DipOption {
   chance?: { chance: number; parts: ChancePart[] };
 }
 
+function giftRel(s: GameState, r: Rival) {
+  return Math.round((r.personality === 'merchant' ? 25 : 18) * (1 + (traitOf(s).gift ?? 0)));
+}
+
 function giftCost(s: GameState) {
   return 5 + s.era * 3;
 }
@@ -680,6 +708,7 @@ function giftCost(s: GameState) {
 function spyCheck(s: GameState): Check {
   return {
     base: 0.35,
+    trait: 'spy',
     flags: { spies: 0.12 },
     stats: { sci: 0.001 },
     success: { text: '', effect: {} },
@@ -690,6 +719,7 @@ function spyCheck(s: GameState): Check {
 function peaceCheck(s: GameState, r: Rival): Check {
   return {
     base: 0.3 + Math.max(0, r.rel + 60) / 300,
+    trait: 'peace',
     flags: { diplomats: 0.12 },
     allies: 0.08,
     success: { text: '', effect: {} },
@@ -703,7 +733,7 @@ export function dipOption(s: GameState, c: DipChoice): DipOption {
   const o = (opt: Omit<DipOption, 'action'>): DipOption => ({ action: c.action, ...opt, label: c.label ?? opt.label });
   switch (c.action) {
     case 'gift':
-      return o({ emoji: '🎁', label: 'Send gifts', desc: `-${cost} gold, relations +${r.personality === 'merchant' ? 25 : 18}`, ok: s.stats.gold >= cost, why: `Needs ${cost} gold` });
+      return o({ emoji: '🎁', label: 'Send gifts', desc: `-${cost} gold, relations +${giftRel(s, r)}`, ok: s.stats.gold >= cost, why: `Needs ${cost} gold` });
     case 'trade':
       return o({ emoji: '🐪', label: 'Sign a trade pact', desc: `+${tradeIncome(s, r)} gold every turn while it lasts`, ok: true });
     case 'alliance':
@@ -791,7 +821,7 @@ export function doDiplomacy(s: GameState, n: number) {
   switch (action) {
     case 'gift':
       s.stats.gold -= giftCost(s);
-      r.rel += r.personality === 'merchant' ? 25 : 18;
+      r.rel += giftRel(s, r);
       lines.push(`${r.emoji} ${r.name} accepts your gifts and pretends they were expecting them.`);
       break;
     case 'trade':
@@ -811,7 +841,7 @@ export function doDiplomacy(s: GameState, n: number) {
       }
       break;
     case 'insult':
-      s.stats.joy += 6;
+      s.stats.joy += 6 + (traitOf(s).insultJoy ?? 0);
       r.rel -= r.personality === 'warlike' ? 35 : 25;
       lines.push(`The insult is read aloud in every square. It rhymes. ${r.name} is furious.`);
       break;
@@ -855,6 +885,8 @@ function upkeep(s: GameState): string[] {
   const st = s.stats;
   const gov = GOVERNMENTS[s.gov];
   if (gov) for (const k in gov.perTurn) st[k as Stat] += gov.perTurn[k as Stat] ?? 0;
+  const tp = traitOf(s).perTurn;
+  if (tp) for (const k in tp) st[k as Stat] += tp[k as Stat] ?? 0;
   const formPer = s.form ? FORMS.get(s.form)?.perTurn : undefined;
   if (formPer) for (const k in formPer) st[k as Stat] += formPer[k as Stat] ?? 0;
   for (const id of s.origins) {
@@ -923,7 +955,7 @@ function upkeep(s: GameState): string[] {
     }
     if (r.war) {
       const allyHelp = s.rivals.filter((a) => a.alive && a.ally && a !== r).reduce((a, x) => a + x.mil * 0.4, 0);
-      const myPower = (st.mil + allyHelp) * (0.75 + Math.random() * 0.5);
+      const myPower = (st.mil + allyHelp) * (0.75 + Math.random() * 0.5) * (1 + (traitOf(s).war ?? 0));
       const theirPower = r.mil * (0.75 + Math.random() * 0.5);
       if (myPower >= theirPower) {
         const loot = 2 + s.era;
@@ -1015,12 +1047,13 @@ function endTurn(s: GameState) {
     const oldLeader = s.leader;
     s.era += 1;
     s.leader = newLeader(s.era);
+    s.trait = newTrait();
     s.threat += 6;
     const left = agesLeft(s);
     s.result = {
       kind: 'era',
       title: `The ${ERAS[s.era].name}`,
-      lines: [`${oldLeader} retires. ${s.leader} takes charge.`, left === 1 ? '🛸 This is the last age. They are almost here.' : `🛸 The fleet arrives in ${left} ages.`, ...lines],
+      lines: [`${oldLeader} retires. ${s.leader} takes charge, known as ${traitOf(s).emoji} ${traitOf(s).name}.`, left === 1 ? '🛸 This is the last age. They are almost here.' : `🛸 The fleet arrives in ${left} ages.`, ...lines],
       deltas: eraDeltas,
       grew,
       yearFrom,
@@ -1030,6 +1063,15 @@ function endTurn(s: GameState) {
     s.eraStart = { stats: { ...s.stats }, flags: { ...s.flags } };
     s.phase = 'era';
     return;
+  }
+  if (Math.random() < 0.04) {
+    const old = s.leader;
+    s.leader = newLeader(s.era);
+    s.trait = newTrait();
+    const tr = traitOf(s);
+    const line = `${pick(LEADER_EXITS).replace('{old}', old)} ${s.leader} takes over, known as ${tr.emoji} ${tr.name}.`;
+    lines.unshift(line);
+    addLog(s, line);
   }
   s.result = { kind: 'passage', title: 'Time passes', lines, deltas: turnDeltas, yearFrom, yearTo, headlines: pickHeadlines(s, 3) };
   s.phase = 'result';

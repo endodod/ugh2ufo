@@ -17,6 +17,8 @@ import {
   formById,
   foundCivilization,
   newGame,
+  newTrait,
+  traitOf,
   originById,
   ORIGIN_CATEGORIES,
   pickDecision,
@@ -112,6 +114,7 @@ function load(): GameState | null {
     const cardsOk = (list: (ActiveCard | null)[]) => list.every((c) => !c || c.def);
     if (!cardsOk([s.current, ...(s.decisionOptions ?? []), ...(s.eventQueue ?? [])])) return null;
     if (s.phase === 'ending' || !('lastChoice' in s)) return null;
+    if (!s.trait) s.trait = newTrait();
     return s;
   } catch {
     return null;
@@ -656,7 +659,7 @@ function render() {
   const ticks = ERAS.map((e, i) => `<span class="tick ${i <= s.era ? 'past' : ''}" style="left:${(i / ERAS.length) * 100}%" title="${e.name}">${e.emoji}</span>`).join('');
   app.innerHTML = `<div class="app">
     <div class="topbar">
-      <div class="civ"><h1>${esc(s.civ)}</h1><div class="sub">${esc(epithet(s))} · ${esc(s.leader)}</div></div>
+      <div class="civ"><h1>${esc(s.civ)}</h1><div class="sub">${esc(epithet(s))} · ${esc(s.leader)} · <span title="${esc(traitOf(s).desc)}">${traitOf(s).emoji} ${esc(traitOf(s).name)}</span></div></div>
       <div class="badges">
         ${soundCtl()}
         <span class="badge year-badge">📅 ${formatYear(yearOf(s.turn))}</span>

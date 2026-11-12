@@ -186,3 +186,27 @@ export function randomLeader(): string {
 }
 
 export { pick };
+
+export interface LeaderTrait {
+  id: string;
+  name: string;
+  emoji: string;
+  desc: string;
+  spy?: number;
+  peace?: number;
+  insultJoy?: number;
+  gift?: number;
+  war?: number;
+  perTurn?: Partial<Record<Stat, number>>;
+}
+
+export const LEADER_TRAITS: LeaderTrait[] = [
+  { id: 'sneaky', name: 'Sneaky', emoji: '🥷', desc: 'Spies +10%, but peace talks -5%: nobody trusts a person who smiles like that.', spy: 0.1, peace: -0.05 },
+  { id: 'charming', name: 'Charming', emoji: '😏', desc: 'Peace talks +10%, spies -5%: too recognizable for undercover work.', peace: 0.1, spy: -0.05 },
+  { id: 'sharp-tongue', name: 'Sharp Tongue', emoji: '🗡️', desc: 'Insults give +4 extra happiness, but peace talks -5%.', insultJoy: 4, peace: -0.05 },
+  { id: 'generous', name: 'Generous', emoji: '🎁', desc: 'Gifts are 30% more effective. Gold drifts away by 1 per turn.', gift: 0.3, perTurn: { gold: -1 } },
+  { id: 'warmonger', name: 'Warmonger', emoji: '🪓', desc: 'War rolls +15%, but peace talks -10%.', war: 0.15, peace: -0.1 },
+  { id: 'coward', name: 'Careful Coward', emoji: '🐔', desc: 'Peace talks +10%, war rolls -10%.', peace: 0.1, war: -0.1 },
+  { id: 'foodie', name: 'Foodie', emoji: '🍖', desc: '+1 food per turn, -1 science: the library is now a kitchen.', perTurn: { food: 1, sci: -1 } },
+  { id: 'show-off', name: 'Show-off', emoji: '🎺', desc: '+1 happiness per turn. Gifts are 15% less effective, the good stuff stays home.', perTurn: { joy: 1 }, gift: -0.15 },
+];
