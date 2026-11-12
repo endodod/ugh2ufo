@@ -1,6 +1,7 @@
 import type { CardDef } from '../../types';
 import { followupCards } from './followups';
 import { rivalFollowups } from './followups_rivals';
+import { diplomacyFollowups } from './followups_diplomacy';
 import { chainCards1 } from './chains';
 import { chainCards2 } from './chains2';
 import { chainCards3 } from './chains3';
@@ -13,6 +14,7 @@ export { chainHeadlines } from './headlines';
 export const chainCards: CardDef[] = [
   ...followupCards,
   ...rivalFollowups,
+  ...diplomacyFollowups,
   ...chainCards1,
   ...chainCards2,
   ...chainCards3,
