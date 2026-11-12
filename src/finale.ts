@@ -1,4 +1,5 @@
 import type { GameState } from './engine';
+import { rand } from './rng';
 import { flag, flagLabel, formById } from './engine';
 
 export interface Route {
@@ -286,7 +287,7 @@ export function resolveWave(s: GameState, route: Route) {
   if (!s.finale) s.finale = { wave: 0, results: [] };
   const w = s.finale.wave;
   const odds = waveOdds(s, route, w);
-  const roll = Math.random();
+  const roll = rand();
   const win = roll < odds.chance;
   s.finale.results.push({
     wave: w,
